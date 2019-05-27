@@ -3,7 +3,9 @@ class	Textures
 {
 	constructor()
 	{
-		this.names = ["blue", "green", "grey", "orange", "pearl", "purple", "red", "yellow"];
+		this.namesColors = ["blue", "green", "grey", "orange", "pearl", "purple", "red", "yellow"];
+		this.namesMasks = ["gradient_black", "gradient_white"];
+		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart"];
 		this.maps = {};
 		this.loader = new THREE.TextureLoader();
 	}
@@ -11,8 +13,12 @@ class	Textures
 	loadTextures()
 	{
 		var promises = [];
-		for (let i = 0; i < this.names.length; ++i)
-			promises.push(new Promise(resolve => {this.maps[this.names[i]] = this.loader.load("/imgs/" + this.names[i] + ".jpg", resolve);}));
+		for (let i = 0; i < this.namesColors.length; ++i)
+			promises.push(new Promise(resolve => {this.maps[this.namesColors[i]] = this.loader.load("/imgs/" + this.namesColors[i] + ".jpg", resolve);}));
+		for (let i = 0; i < this.namesMasks.length; ++i)
+			promises.push(new Promise(resolve => {this.maps[this.namesMasks[i]] = this.loader.load("/imgs/" + this.namesMasks[i] + ".jpg", resolve);}));
+		for (let i = 0; i < this.namesMaterials.length; ++i)
+			promises.push(new Promise(resolve => {this.maps[this.namesMaterials[i]] = this.loader.load("/imgs/" + this.namesMaterials[i] + ".jpg", resolve);}));
 		return promises;
 	}
 }
@@ -37,7 +43,7 @@ class	Shapes
 		this.shapes["J"] = [[0,0], [1,0], [1,1], [1,2]];
 		this.shapes["T"] = [[0,1], [1,1], [2,1], [1,0]];
 		
-		this.pivots["O"] = null;
+		this.pivots["O"] = [0,0];
 		this.pivots["I"] = [0,2];
 		this.pivots["S"] = [1,1];
 		this.pivots["Z"] = [1,1];
@@ -48,7 +54,27 @@ class	Shapes
 }
 
 
-class Box
+class	Audios
+{
+	constructor()
+	{
+		this.names = ["tetris.ogg"];
+		this.tracks = {};
+		this.listener = new THREE.AudioListener();
+		this.loader = new THREE.AudioLoader();
+	}
+	
+	loadAudios()
+	{
+		var promises = [];
+		for (let i = 0; i < this.names.length; ++i)
+			promises.push(new Promise(resolve => {this.loader.load("/audio/" + this.names[i], resolve);}));
+		return promises;
+	}
+}
+
+
+class	Box
 {
 	// Parameters types: (float, float, float, float), 
 	constructor(left, bottom, right, top)
@@ -64,6 +90,14 @@ class Box
 		var aux = 0;
 		if (this.left > this.right) {aux = this.left; this.left = this.right; this.right = aux;}
 		if (this.bottom > this.top) {aux = this.bottom; this.bottom = this.top; this.top = aux;}
+	}
+	
+	shrink()
+	{
+		this.left += 1;
+		this.bottom += 1;
+		this.right -= 1;
+		this.top -= 1;
 	}
 	
 	// Returns true if the given point is inside or in the border of the box.
@@ -86,11 +120,12 @@ class Box
 
 class	Block
 {
-	constructor(render, position=new THREE.Vector2(0,0), color="blue", visible=true)
+	constructor(render, position=new THREE.Vector2(0,0), color="blue", form="square", visible=true)
 	{
 		this.render = render;
 		this.position = position;
 		this.color = color;
+		this.form = form;
 		
 		this.block = null;
 		this.make(visible);
@@ -100,8 +135,23 @@ class	Block
 	{
 		if (this.block != null) return;
 		
-		var geometry = new THREE.PlaneGeometry(1, 1, 10, 10);
-		var material = new THREE.MeshBasicMaterial({map:this.render.textures.maps[this.color]});
+		var material = null;
+		var geometry = null;
+		
+		if (typeof(this.color) == "string")
+			material = new THREE.MeshBasicMaterial({map:this.render.textures.maps[this.color]});
+		else if (typeof(this.color) == "number")
+			material = new THREE.MeshMatcapMaterial({color:this.color});
+		
+		if (this.form == "square")
+			geometry = new THREE.PlaneGeometry(1, 1);
+		else if (this.form == "cube")
+			geometry = new THREE.BoxGeometry(1, 1, 1);
+		else if (this.form == "circle")
+			geometry = new THREE.CircleGeometry(0.5, 20);
+		else if (this.form == "sphere")
+			geometry = new THREE.SphereGeometry(0.5, 20, 20);
+		
 		this.block = new THREE.Mesh(geometry, material);
 		
 		this.block.position.set(this.position.x + 0.5, this.position.y + 0.5, 0);
@@ -121,6 +171,13 @@ class	Block
 		this.block.position.set(position.x + 0.5, position.y + 0.5, 0);
 	}
 	
+	move(displacement)
+	{
+		var newPosition = this.position;
+		newPosition.add(displacement);
+		this.setPosition(newPosition);
+	}
+	
 	remove()
 	{
 		if (this.block == null) return;
@@ -132,18 +189,19 @@ class	Block
 
 class	Piece
 {
-	constructor(render, origin, shapeName, pivot, visibleBox, color="blue", visible=true)
+	constructor(render, origin, shapeName, pivot, visibleBox, color="blue", form="square", visible=true)
 	{
 		this.render = render;
 		this.origin = origin;
 		this.shapeName = shapeName;
 		// If the pivot is null, then the piece will not rotate.
-		this.pivot = pivot || this.render.shapes.pivots[this.shapeName];
+		this.pivot = pivot || new THREE.Vector2(this.render.shapes.pivots[this.shapeName][0], this.render.shapes.pivots[this.shapeName][1]);
 		this.color = color;
+		this.form = form;
 		this.visibleBox = visibleBox;
 		this.visible = visible;
 		
-		this.blocks = Array.from(this.render.shapes.shapes[this.shapeName], v => new Block(this.render, (new THREE.Vector2(v[0], v[1])).add(this.origin), this.color));
+		this.blocks = Array.from(this.render.shapes.shapes[this.shapeName], v => new Block(this.render, (new THREE.Vector2(v[0], v[1])).add(this.origin), this.color, this.form));
 		this.setVisibility(this.visible);
 	}
 	
@@ -168,19 +226,15 @@ class	Piece
 			newPosition.add(this.origin);
 			this.blocks[i].setPosition(newPosition);
 		}
+		
 		this.setVisibility(this.visible);
 	}
 	
 	move(displacement)
 	{
-		var newPosition = null;
 		this.origin.add(displacement);
 		for (var i = 0; i < this.blocks.length; ++i)
-		{
-			newPosition = this.blocks[i].position;
-			newPosition.add(displacement);
-			this.blocks[i].setPosition(newPosition);
-		}
+			this.blocks[i].move(displacement);
 		this.setVisibility(this.visible);
 	}
 	
@@ -205,30 +259,93 @@ class	Piece
 }
 
 
-class Board
+class	Board
 {
 	constructor(render, width, height)
 	{
 		this.render = render;
 		this.width = width;
 		this.height = height;
+		// The grid is where the pieces will live.
+		this.grid = null;
 		// The frame is all that surounds the grid.
-		this.frame = new Box(-1, -1, this.width, this.height);
-		this.grid = new Array(this.width);
+		this.frame = null;
+		// The frame-box contains the grid and the frame.
+		this.frameBox = new Box(-1, -1, this.width, this.height);
+		// Track the number of blocks in each line of the board.
+		this.lineBlocks = new Array(this.height);
+		// The lines marked.
+		this.markedLines = null;
 		
+		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "frame":new Box(0,0,this.width-1, this.height-1)};
+		
+		this.background = null;
+		
+		for (var i = 0; i < this.lineBlocks.length; ++i) this.lineBlocks[i] = 0;
+		
+		this.createGridSpace();
+	}
+	
+	// Create the grid space.
+	createGridSpace()
+	{
+		this.grid = new Array(this.width);
 		for (var i = 0; i < this.grid.length; ++i)
 			this.grid[i] = new Array(this.height);
-		
 		for (var i = 0; i < this.width; ++i)
 		for (var j = 0; j < this.height; ++j)
 			this.grid[i][j] = null;
 	}
 	
+	// This must be called once the textures have been loaded.
+	createFrame(color, form)
+	{
+		var x=-1 ,y = -1;
+		var dx = 1, dy = 0;
+		var edge = 0;
+		
+		this.frame = new Array(2 * this.width + 2 * this.height + 4);
+		
+		for (var i = 0; i < this.frame.length; ++i)
+		{
+			this.frame[i] = new Block(this.render, new THREE.Vector2(x,y), color, form, true);
+			
+			if (edge == 0 && x == this.frameBox.right)
+			{
+				dx = 0;
+				dy = 1;
+				edge = 1;
+			}
+			else if (edge == 1 && y == this.frameBox.top)
+			{
+				dx = -1;
+				dy = 0;
+				edge = 2;
+			}
+			else if (edge == 2 && x == this.frameBox.left)
+			{
+				dx = 0;
+				dy = -1;
+				edge = 3;
+			}
+			else if (edge == 3 && y == this.frameBox.bottom)
+			{
+				dx = 1;
+				dy = 0;
+				edge = 0;
+			}
+			x += dx;
+			y += dy;
+		}
+	}
+	
 	addBlock(block)
 	{
 		// Only add the plock if it falls inside the grid.
-		if (! this.frame.contains(block.position)) return;
+		if (! this.frameBox.contains(block.position)) return;
 		var position = block.position;
+		
+		if (this.grid[position.x][position.y] == null) this.lineBlocks[position.y] += 1;
 		this.grid[position.x][position.y] = block;
 	}
 	
@@ -236,6 +353,154 @@ class Board
 	{
 		for (var i = 0; i < piece.blocks.length; ++i)
 			this.addBlock(piece.blocks[i]);
+	}
+	
+	clearBlock(position)
+	{
+		if (!this.frameBox.contains(position) || this.grid[position.x][position.y] == null) return;
+		
+		this.grid[position.x][position.y].remove();
+		this.grid[position.x][position.y] = null;
+		this.lineBlocks[position.y] -= 1;
+	}
+	
+	fullLines()
+	{
+		var lines = [];
+		
+		for (var i = 0; i < this.lineBlocks.length; ++i)
+			if (this.lineBlocks[i] == this.width) lines.push(i);
+		return lines;
+	}
+	
+	clearLine(y)
+	{
+		if (y < 0 || y >= this.height) return;
+		
+		for (var i = 0; i < this.width; ++i)
+			this.clearBlock(new THREE.Vector2(i, y));
+	}
+	
+	moveBlock(position, displacement)
+	{
+		if (!this.frameBox.contains(position)) return;
+		
+		var newPosition = (new THREE.Vector2(0,0)).copy(position).add(displacement);
+		
+		this.clearBlock(newPosition);
+		if (this.grid[position.x][position.y] != null && this.frameBox.contains(newPosition))
+		{
+			var block = this.grid[position.x][position.y];
+			var newBlock = new Block(this.render, newPosition, block.color, block.form, block.visible);
+			this.addBlock(newBlock);
+		}
+		this.clearBlock(position);
+	}
+	
+	moveLine(y, steps)
+	{
+		if (y < 0 || y >= this.height || y + steps < 0 || y + steps >= this.height) return;
+		
+		for (var i = 0; i < this.width; ++i)
+			this.moveBlock(new THREE.Vector2(i, y), new THREE.Vector2(0, steps));
+	}
+	
+	blockOnTop()
+	{
+		return this.lineBlocks[this.height - 1] > 0;
+	}
+	
+	markLines(lines)
+	{
+		this.markedLines = new Array(lines.length);
+		
+		for (var j = 0; j < lines.length; ++j)
+		{
+			this.markedLines[j] = new Array(this.width);
+			for (var i = 0; i < this.width; ++i)
+				this.markedLines[j][i] = new Block(this.render, new THREE.Vector2(i,lines[j]), "fire_block", "square", true);
+		}
+	}
+	
+	blinkMarkedLines()
+	{
+		if (this.markedLines == null) return;
+		
+		for (var j = 0; j < this.markedLines.length; ++j)
+		for (var i = 0; i < this.width; ++i)
+			this.markedLines[j][i].setVisibility(!this.markedLines[j][i].block.visible)
+	}
+	
+	clearMarkedLines()
+	{
+		if (this.markedLines == null) return;
+		
+		for (var j = 0; j < this.markedLines.length; ++j)
+		for (var i = 0; i < this.width; ++i)
+		{
+			this.markedLines[j][i].remove();
+			this.markedLines[j][i] = null;
+		}
+		this.markedLines = null;
+	}
+	
+	nextBoardSpiral(mode)
+	{
+		this.clearBlock(new THREE.Vector2(this.spiralState.x, this.spiralState.y));
+		if (mode == "show")
+			this.addBlock(new Block(this.render, new THREE.Vector2(this.spiralState.x, this.spiralState.y), "fire_block", "square", true));
+		
+		if (this.spiralState.edge == "bottom" && this.spiralState.x == this.spiralState.frame.right)
+		{
+			this.spiralState.dx = 0;
+			this.spiralState.dy = 1;
+			this.spiralState.edge = "right";
+		}
+		else if (this.spiralState.edge == "right" && this.spiralState.y == this.spiralState.frame.top)
+		{
+			this.spiralState.dx = -1;
+			this.spiralState.dy = 0;
+			this.spiralState.edge = "top";
+		}
+		else if (this.spiralState.edge == "top" && this.spiralState.x == this.spiralState.frame.left)
+		{
+			this.spiralState.dx = 0;
+			this.spiralState.dy = -1;
+			this.spiralState.edge = "left";
+		}
+		else if (this.spiralState.edge == "left" && this.spiralState.y == this.spiralState.frame.bottom + 1)
+		{
+			this.spiralState.dx = 1;
+			this.spiralState.dy = 0;
+			this.spiralState.edge = "bottom";
+			this.spiralState.frame.shrink();
+		}
+		this.spiralState.x += this.spiralState.dx;
+		this.spiralState.y += this.spiralState.dy;
+	}
+	
+	resetSpiralState()
+	{
+		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "frame":new Box(0,0,this.width-1, this.height-1)};
+	}
+	
+	makeBackground()
+	{
+		var material = new THREE.MeshBasicMaterial({map:this.render.textures.maps["end_img"]});
+		var geometry = new THREE.PlaneGeometry(this.width, this.height);
+		
+		this.background = new THREE.Mesh(geometry, material);
+		
+		this.background.position.set(this.width / 2, this.height / 2, -0.1);
+		this.background.visible = true;
+		
+		this.render.scene.add(this.background);
+	}
+	
+	changeFrameTexture(name)
+	{
+		for (var i = 0; i < this.frame.length; ++i)
+			this.frame[i].block.material.map = this.render.textures.maps[name];
 	}
 	
 	// Checks if the given block shares a border with any of the blocks of the grid.
@@ -246,11 +511,14 @@ class Board
 	{
 		var collisions = {"left":false, "bottom":false, "right":false, "top":false, "over":false};
 		
-		if (block.position.x > 0 && this.grid[block.position.x - 1][block.position.y] != null) collisions["left"] = true;
-		if (block.position.y > 0 && this.grid[block.position.x][block.position.y - 1] != null) collisions["bottom"] = true;
-		if (block.position.x < this.width - 1 && this.grid[block.position.x + 1][block.position.y] != null) collisions["right"] = true;
-		if (block.position.y < this.height - 1 && this.grid[block.position.x][block.position.y + 1] != null) collisions["top"] = true;
-		if (this.frame.contains(block.position) && this.grid[block.position.x][block.position.y] != null) collisions["over"] = true;
+		if (this.frameBox.contains(block.position))
+		{
+			if (block.position.x > 0 && this.grid[block.position.x - 1][block.position.y] != null) collisions["left"] = true;
+			if (block.position.y > 0 && this.grid[block.position.x][block.position.y - 1] != null) collisions["bottom"] = true;
+			if (block.position.x < this.width - 1 && this.grid[block.position.x + 1][block.position.y] != null) collisions["right"] = true;
+			if (block.position.y < this.height - 1 && this.grid[block.position.x][block.position.y + 1] != null) collisions["top"] = true;
+			if (this.grid[block.position.x][block.position.y] != null) collisions["over"] = true;
+		}
 		
 		if (border)
 		{
@@ -258,7 +526,7 @@ class Board
 			if (block.position.y == 0) collisions["bottom"] = true;
 			if (block.position.x == this.width - 1) collisions["right"] = true;
 			if (block.position.y == this.height - 1) collisions["top"] = true;
-			if (this.frame.covers(block.position) && !this.frame.contains(block.position)) collisions["over"] = true;
+			if (!this.frameBox.contains(block.position)) collisions["over"] = true;
 		}
 		
 		return collisions;
@@ -449,12 +717,18 @@ class	Plane
 		this.pix_dx = (this.box.right - this.box.left) / this.width;
 		this.pix_dy = (this.box.top - this.box.bottom) / this.height;
 		
+		// The scene.
 		this.scene = new THREE.Scene();
+		// Two cameras, one for 2D view and the other for a 3D perpective.
 		this.camera = new THREE.OrthographicCamera(this.box.left, this.box.right, this.box.top, this.box.bottom, 0.1, 30);
-		//this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100);
+		this.camera3D = new THREE.PerspectiveCamera(60, this.width / this.height, 0.1, 100);
+		// The renderer.
 		this.renderer = new THREE.WebGLRenderer({antialias:true});
 		// The plane that will work as the background.
 		this.background = null;
+		
+		// The context will indicate the camera used in the rendering ("2D" or "3D").
+		this.context = "2D"
 		
 		// Set the div and the renderer sizes.
 		$("#"+this.divID).width(this.width);
@@ -464,12 +738,25 @@ class	Plane
 		// Append the renderer as a child of the div element.
 		$("#"+this.divID).append(this.renderer.domElement);
 		
-		// Set the camera position and look vector.
-		this.camera.position.set(0, 0, 10);
+		// Set the cameras position and look vector.
+		this.camera.position.set(0, 0, 1);
 		this.camera.lookAt(0, 0, 0);
+		this.camera3D.position.set(0, 0, 20);
+		this.camera3D.lookAt(0, 0, 0);
 		
-		this.light = new THREE.PointLight(0xffffff);
-		this.light.position.set(0, 0, 100);
+		// Ortbit controls for the 3D camera.
+		this.orbitControls = new THREE.OrbitControls(this.camera3D);
+		this.orbitControls.target.set(0, 0, 0);
+		this.orbitControls.minAzimuthAngle = -2 * Math.PI / 10;
+		this.orbitControls.maxAzimuthAngle = 2 * Math.PI / 10;
+		this.orbitControls.minPolarAngle =  3 * Math.PI / 10;
+		this.orbitControls.maxPolarAngle =  7 * Math.PI / 10;
+		
+		/*this.light = new THREE.AmbientLight(0x404040);
+		this.light = new THREE.PointLight(0xff0000, 3, 100, 2);
+		*/
+		this.light = new THREE.DirectionalLight(0xffffff, 2);
+		this.light.position.set(0, 0, 20);
 		this.scene.add(this.light);
 		
 		// ELEMENTS DRAWN IN THE SCENE.
@@ -694,10 +981,17 @@ class	Plane
 		this.redraw();
 	}
 	
+	// Set the rendering context ("2D" or "3D")
+	setContext(context)
+	{
+		this.context = context;
+	}
+	
 	// Draw the scene.
 	redraw()
 	{
-		this.renderer.render(this.scene, this.camera);
+		if (this.context == "3D") this.renderer.render(this.scene, this.camera3D);
+		else this.renderer.render(this.scene, this.camera);
 	}
 }
 
@@ -707,6 +1001,7 @@ class	Tetra	extends	Plane
 	constructor(divID, width, height, bgColor)
 	{
 		super(divID, width, height, bgColor);
+		
 		// Size of the grid.
 		this.blocksWidth = 10;
 		this.blocksHeight = 20;
@@ -714,6 +1009,7 @@ class	Tetra	extends	Plane
 		// Makers of textures and shapes.
 		this.textures = new Textures();
 		this.shapes = new Shapes();
+		this.audios = null;
 		
 		// The grid that will store the blocks already placed.
 		this.boardBox = new Box(0, 0, this.blocksWidth - 1, this.blocksHeight - 1);
@@ -730,19 +1026,23 @@ class	Tetra	extends	Plane
 		this.currentPiece = null;
 		this.nextPiece = null;
 		
+		this.state = "waiting_start";
+		this.lines = [];
+		
+		this.blinks = 0;
+		this.endBlocks = 0;
+		this.endMode = "show";
+		
+		// Set the target of the orbit controls.
+		this.orbitControls.target.set(this.blocksWidth / 2, this.blocksHeight / 2, 0);
+		this.camera3D.position.set(this.blocksWidth / 2, this.blocksHeight / 2, 20);
+		this.camera3D.lookAt(this.blocksWidth / 2, this.blocksHeight / 2, 0);
+		
 		// Prepare the view.
-		this.changeBoxProportional(new Box(0, 0 - 1, this.blocksWidth, this.blocksHeight + 1));
+		this.changeBoxProportional(new Box(0, 0 - 2, this.blocksWidth, this.blocksHeight + 2));
 		this.addAxis();
 		
-		// Start execution.
-		this.shapes.make();
-		var texturesPromises = this.textures.loadTextures();
-		Promise.all(texturesPromises).then(textures => {
-			this.currentPiece = this.createPiece(true);
-			this.nextPiece = this.createPiece(false);
-			this.prevTime = Date.now();
-			this.animate(0);
-		});
+		window.addEventListener('keydown', this.onKeyDown.bind(this), false);
 	}
 	
 	animate(time)
@@ -750,43 +1050,201 @@ class	Tetra	extends	Plane
 		this.nextFrame = requestAnimationFrame(this.animate.bind(this));
 		
 		var currentTime = Date.now();
-		var collisions = null;
 		
-		if (currentTime - this.prevTime >= this.speed)
+		if (this.state == "playing")
 		{
-			collisions = this.board.collisionPiece(this.currentPiece, true);
-			
-			if (collisions["bottom"])
+			if (currentTime - this.prevTime >= this.speed)
 			{
-				this.board.addPiece(this.currentPiece);
-				this.currentPiece = this.nextPiece;
-				this.currentPiece.setVisibility(true);
-				
-				this.nextPiece = this.createPiece(true);
+				if (this.state == "playing") this.moveDown();
+			}
+		}
+		else if (this.state == "marking_lines")
+		{
+			if (this.blinks == 0)
+			{
+				this.board.markLines(this.lines);
+				this.blinks += 1;
 			}
 			
-			this.currentPiece.move(new THREE.Vector2(0,-1));
-			this.prevTime = currentTime;
+			if (currentTime - this.prevTime >= 300)
+			{
+				if (this.blinks < 4)
+				{
+					this.board.blinkMarkedLines();
+					this.blinks += 1;
+					this.prevTime = Date.now();
+				}
+				else
+				{
+					this.board.clearMarkedLines();
+					this.blinks = 0;
+					this.setState("deleting_lines");
+				}
+			}
+			
+		}
+		else if (this.state == "deleting_lines")
+		{
+			this.lines.push(this.blocksHeight);
+			for (var i = 0; i < this.lines.length - 1; ++i)
+			for (var j = this.lines[i] + 1; j < this.lines[i + 1]; ++j)
+				this.board.moveLine(j, -(i + 1));
+			this.board.clearLine(this.height - 1);
+			
+			this.prevTime = Date.now();
+			this.setState("test_game_over");
+		}
+		else if (this.state == "test_game_over")
+		{
+			if (this.board.blockOnTop())
+			{
+				console.log("GAME OVER");
+				this.audios.tracks["tetris.ogg"].stop();
+				this.setState("end_spiral");
+			}
+			else
+				// Back to play.
+				this.setState("playing");
+		}
+		else if (this.state == "end_spiral")
+		{
+			if (currentTime - this.prevTime >= 10)
+			{
+				if (this.endBlocks < this.blocksWidth * this.blocksHeight)
+				{
+					this.board.nextBoardSpiral(this.endMode);
+					this.endBlocks += 1;
+				}
+				else
+				{
+					if (this.endMode == "show")
+					{
+						this.endMode = "hide";
+						this.board.makeBackground();
+					}
+					else
+					{
+						this.setState("end");
+						this.board.changeFrameTexture("heart");
+					}
+					
+					this.endBlocks = 0;
+					this.board.resetSpiralState();
+				}
+				this.prevTime = Date.now();
+			}
 		}
 		
-		//console.log("pfs: ", time - this.prevTime);
-		//this.stop();
-		
+		this.orbitControls.update();
 		this.redraw();
+	}
+	
+	onKeyDown(event)
+	{
+		switch (event.keyCode)
+		{
+			case 37: if (this.state == "playing") this.moveLeft();
+				break;
+			case 39: if (this.state == "playing") this.moveRight();
+				break;
+			case 40: if (this.state == "playing") this.moveDown();
+				break;
+			case 32: if (this.state == "playing") this.roratePiece();
+				break;
+		}
+	}
+	
+	moveLeft()
+	{
+		var collisions = this.board.collisionPiece(this.currentPiece, true);
+		
+		if (!collisions["left"])
+			this.currentPiece.move(new THREE.Vector2(-1, 0));
+	}
+	
+	moveRight()
+	{
+		var collisions = this.board.collisionPiece(this.currentPiece, true);
+		
+		if (!collisions["right"])
+			this.currentPiece.move(new THREE.Vector2(1, 0));
+	}
+	
+	moveDown()
+	{
+		var collisions = this.board.collisionPiece(this.currentPiece, true);
+		
+		if (collisions["bottom"])
+		{
+			this.board.addPiece(this.currentPiece);
+			this.currentPiece = this.nextPiece;
+			this.currentPiece.setVisibility(true);
+			this.nextPiece = this.createPiece(false);
+			
+			this.lines = this.board.fullLines();
+			if (this.lines.length > 0)
+				this.setState("marking_lines");
+			else
+				this.setState("test_game_over");
+		}
+		
+		if (this.state == "playing")
+			this.currentPiece.move(new THREE.Vector2(0,-1));
+		this.prevTime = Date.now();
+	}
+	
+	roratePiece()
+	{
+		var collisions = null;
+		
+		this.currentPiece.rotate();
+		collisions = this.board.collisionPiece(this.currentPiece, true);
+		if (collisions["over"]) this.currentPiece.rotate(1);
 	}
 	
 	createPiece(visible)
 	{
 		var shape = this.shapes.names[this.randomInt(0, this.shapes.names.length)];
-		var color = this.textures.names[this.randomInt(0, this.textures.names.length)];
+		var color = this.textures.namesColors[this.randomInt(0, this.textures.namesColors.length)];
 		var x = this.randomInt(0, this.blocksWidth - 3);
 		
-		return new Piece(this, new THREE.Vector2(x, this.blocksHeight), shape, undefined, this.boardBox, color, visible);
+		return new Piece(this, new THREE.Vector2(x, this.blocksHeight), shape, undefined, this.boardBox, color, "square", visible);
 	}
 	
-	movePiece(displacement)
+	setState(state)
 	{
-		return;
+		this.state = state;
+	}
+	
+	startGame()
+	{
+		// Start execution.
+		this.shapes.make();
+		this.audios = new Audios();
+		
+		var texturesPromises = this.textures.loadTextures();
+		var audiosPromises = this.audios.loadAudios();
+		
+		Promise.all(audiosPromises).then(buffers => {
+			for (var i = 0; i < this.audios.names.length; ++i)
+			{
+				this.audios.tracks[this.audios.names[i]] = new THREE.Audio(this.audios.listener);
+				this.audios.tracks[this.audios.names[i]].setBuffer(buffers[i]);
+				this.audios.tracks[this.audios.names[i]].setLoop(true);
+				this.audios.tracks[this.audios.names[i]].setVolume(0.5);
+			}
+			this.audios.tracks["tetris.ogg"].play();
+		});
+		
+		Promise.all(texturesPromises).then(textures => {
+			this.board.createFrame("bricks", "square");
+			this.currentPiece = this.createPiece(true);
+			this.nextPiece = this.createPiece(false);
+			this.prevTime = Date.now();
+			this.animate(0);
+		});
+		
+		this.setState("playing");
 	}
 	
 	stop()
