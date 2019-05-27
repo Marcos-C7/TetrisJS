@@ -3,23 +3,41 @@
 <head>
 	<meta charset=utf-8>
 	<title>Tet</title>
-	<style>
-		body {margin: 0px; overflow: hidden;}
-	</style>
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+	<style>
+	body {margin: 0px; overflow: hidden;}
+	
+	.button {
+    position: fixed;
+    margin: auto;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 200px; /* width of button */
+    height: 50px; /* height of button */
+	}
+	</style>
 </head>
 <body>
 <div id="draw_container" style="height:400px; width:400px; margin:0px; padding:0px;"></div>
+<button id="start_button" class="button">¡Comenzar juego!</button>
 
 <script src="js/three.min.js"></script>
 <script src="js/WebGL.js"></script>
+<script src="js/OrbitControls.js"></script>
 <script src="js/tetris.js"></script>
 <script>
 
 var w = $(window).width();
 var	h = $(window).height();
-var	Tet = new Tetra('draw_container', w, h, 0xffffff);
+var	Tet = new Tetra('draw_container', w, h, 0x000000);
 
+var start_button = document.getElementById("start_button");
+start_button.addEventListener("click", function(){
+	$("#start_button").hide();
+	Tet.startGame();
+});
 
 </script>
 </body>
