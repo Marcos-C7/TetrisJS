@@ -4,8 +4,8 @@ class	Textures
 	constructor()
 	{
 		this.namesColors = ["blue", "green", "grey", "orange", "pearl", "purple", "red", "yellow"];
-		this.namesMasks = ["gradient_black", "gradient_white"];
-		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart"];
+		this.namesMasks = ["gradient_black", "gradient_white", "dark"];
+		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart", "background"];
 		this.maps = {};
 		this.loader = new THREE.TextureLoader();
 	}
@@ -58,7 +58,7 @@ class	Audios
 {
 	constructor()
 	{
-		this.names = ["tetris.ogg"];
+		this.names = ["tetris.ogg", "blink.wav"];
 		this.tracks = {};
 		this.listener = new THREE.AudioListener();
 		this.loader = new THREE.AudioLoader();
@@ -276,6 +276,8 @@ class	Board
 		this.lineBlocks = new Array(this.height);
 		// The lines marked.
 		this.markedLines = null;
+		// Frame visibility.
+		this.frameVisible = null;
 		
 		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "frame":new Box(0,0,this.width-1, this.height-1)};
 		
@@ -304,6 +306,7 @@ class	Board
 		var dx = 1, dy = 0;
 		var edge = 0;
 		
+		this.frameVisible = true;
 		this.frame = new Array(2 * this.width + 2 * this.height + 4);
 		
 		for (var i = 0; i < this.frame.length; ++i)
@@ -337,6 +340,14 @@ class	Board
 			x += dx;
 			y += dy;
 		}
+	}
+	
+	setFrameVisibility(visible)
+	{
+		if (this.frame == null) return;
+		for (var i = 0; i < this.frame.length; ++i)
+			this.frame[i].setVisibility(visible);
+		this.frameVisible = visible;
 	}
 	
 	addBlock(block)
@@ -506,7 +517,7 @@ class	Board
 	// Checks if the given block shares a border with any of the blocks of the grid.
 	// If 'border=true', then also considers the border of the grid in the test.
 	// Parameters types: (Block, bool)
-	// Return type: {"left":bool, "bottom":bool, "right":bool, "top":bool}
+	// Return type: {"left":bool, "bottom":bool, "right":bool, "top":bool, "over":bool}
 	collisionBlock(block, border=false)
 	{
 		var collisions = {"left":false, "bottom":false, "right":false, "top":false, "over":false};
@@ -541,13 +552,6 @@ class	Board
 		keys.forEach(key => {collisions[key] = collisionsBlocks.map(c => c[key]).some(x => x)});
 		
 		return collisions;
-	}
-	
-	removeBlock(position)
-	{
-		if (this.grid[position.x][position.y] == null) return;
-		this.grid[position.x][position.y].remove();
-		this.grid[position.x][position.y] = null;
 	}
 }
 
@@ -771,7 +775,7 @@ class	Plane
 	makeBackground()
 	{
 		var bgGeometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
-		var bgMaterial = new THREE.MeshBasicMaterial({color: this.bgColor, side: THREE.FrontSide});
+		var bgMaterial = new THREE.MeshBasicMaterial({color: this.bgColor});
 		this.background = new THREE.Mesh(bgGeometry, bgMaterial);
 		this.background.position.set(0.5 * (this.box.right + this.box.left), 0.5 * (this.box.top + this.box.bottom), -10);
 		this.scene.add(this.background);
@@ -1039,8 +1043,8 @@ class	Tetra	extends	Plane
 		this.camera3D.lookAt(this.blocksWidth / 2, this.blocksHeight / 2, 0);
 		
 		// Prepare the view.
-		this.changeBoxProportional(new Box(0, 0 - 2, this.blocksWidth, this.blocksHeight + 2));
-		this.addAxis();
+		this.changeBoxProportional(new Box(0 - 3, 0 - 2, this.blocksWidth + 3, this.blocksHeight + 2));
+		//this.addAxis();
 		
 		window.addEventListener('keydown', this.onKeyDown.bind(this), false);
 	}
@@ -1053,10 +1057,8 @@ class	Tetra	extends	Plane
 		
 		if (this.state == "playing")
 		{
-			if (currentTime - this.prevTime >= this.speed)
-			{
-				if (this.state == "playing") this.moveDown();
-			}
+			if (currentTime - this.prevTime >= this.speed && this.state == "playing")
+				this.moveDown();
 		}
 		else if (this.state == "marking_lines")
 		{
@@ -1064,6 +1066,7 @@ class	Tetra	extends	Plane
 			{
 				this.board.markLines(this.lines);
 				this.blinks += 1;
+				this.audios.tracks["blink.wav"].play();
 			}
 			
 			if (currentTime - this.prevTime >= 300)
@@ -1071,6 +1074,9 @@ class	Tetra	extends	Plane
 				if (this.blinks < 4)
 				{
 					this.board.blinkMarkedLines();
+					if (this.audios.tracks["blink.wav"].isPlaying)
+						this.audios.tracks["blink.wav"].stop();
+					else this.audios.tracks["blink.wav"].play();
 					this.blinks += 1;
 					this.prevTime = Date.now();
 				}
@@ -1078,10 +1084,10 @@ class	Tetra	extends	Plane
 				{
 					this.board.clearMarkedLines();
 					this.blinks = 0;
+					this.audios.tracks["blink.wav"].stop();
 					this.setState("deleting_lines");
 				}
 			}
-			
 		}
 		else if (this.state == "deleting_lines")
 		{
@@ -1100,6 +1106,7 @@ class	Tetra	extends	Plane
 			{
 				console.log("GAME OVER");
 				this.audios.tracks["tetris.ogg"].stop();
+				this.audios.tracks["tetris.ogg"].play();
 				this.setState("end_spiral");
 			}
 			else
@@ -1119,6 +1126,7 @@ class	Tetra	extends	Plane
 				{
 					if (this.endMode == "show")
 					{
+						this.audios.tracks["tetris.ogg"].stop();
 						this.endMode = "hide";
 						this.board.makeBackground();
 					}
@@ -1126,11 +1134,27 @@ class	Tetra	extends	Plane
 					{
 						this.setState("end");
 						this.board.changeFrameTexture("heart");
+						
+						var geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
+						var material = new THREE.MeshBasicMaterial({map:this.textures.maps["background"]});
+						this.background = new THREE.Mesh(geometry, material);
+						this.background.position.set(0.5 * (this.box.right + this.box.left), 0.5 * (this.box.top + this.box.bottom), -10);
+						this.scene.add(this.background);
 					}
 					
 					this.endBlocks = 0;
 					this.board.resetSpiralState();
 				}
+				this.prevTime = Date.now();
+			}
+		}
+		else if (this.state == "end")
+		{
+			if (currentTime - this.prevTime >= 500)
+			{
+				if (this.board.frame[0].block.material.map == this.textures.maps["heart"])
+					this.board.changeFrameTexture("dark");
+				else this.board.changeFrameTexture("heart");
 				this.prevTime = Date.now();
 			}
 		}
