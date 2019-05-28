@@ -14,11 +14,11 @@ class	Textures
 	{
 		var promises = [];
 		for (let i = 0; i < this.namesColors.length; ++i)
-			promises.push(new Promise(resolve => {this.maps[this.namesColors[i]] = this.loader.load("TetrisJS/imgs/" + this.namesColors[i] + ".jpg", resolve);}));
+			promises.push(new Promise(resolve => {this.maps[this.namesColors[i]] = this.loader.load("imgs/" + this.namesColors[i] + ".jpg", resolve);}));
 		for (let i = 0; i < this.namesMasks.length; ++i)
-			promises.push(new Promise(resolve => {this.maps[this.namesMasks[i]] = this.loader.load("TetrisJS/imgs/" + this.namesMasks[i] + ".jpg", resolve);}));
+			promises.push(new Promise(resolve => {this.maps[this.namesMasks[i]] = this.loader.load("imgs/" + this.namesMasks[i] + ".jpg", resolve);}));
 		for (let i = 0; i < this.namesMaterials.length; ++i)
-			promises.push(new Promise(resolve => {this.maps[this.namesMaterials[i]] = this.loader.load("TetrisJS/imgs/" + this.namesMaterials[i] + ".jpg", resolve);}));
+			promises.push(new Promise(resolve => {this.maps[this.namesMaterials[i]] = this.loader.load("imgs/" + this.namesMaterials[i] + ".jpg", resolve);}));
 		return promises;
 	}
 }
@@ -68,7 +68,7 @@ class	Audios
 	{
 		var promises = [];
 		for (let i = 0; i < this.names.length; ++i)
-			promises.push(new Promise(resolve => {this.loader.load("TetrisJS/audio/" + this.names[i], resolve);}));
+			promises.push(new Promise(resolve => {this.loader.load("audio/" + this.names[i], resolve);}));
 		return promises;
 	}
 }
