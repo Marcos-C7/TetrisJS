@@ -5,7 +5,7 @@ class	Textures
 	{
 		this.namesColors = ["blue", "green", "grey", "orange", "pearl", "purple", "red", "yellow"];
 		this.namesMasks = ["gradient_black", "gradient_white", "dark"];
-		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart", "background"];
+		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart", "background", "dark_fire_block", "background_heart"];
 		this.maps = {};
 		this.loader = new THREE.TextureLoader();
 	}
@@ -43,7 +43,7 @@ class	Shapes
 		this.shapes["J"] = [[0,0], [1,0], [1,1], [1,2]];
 		this.shapes["T"] = [[0,1], [1,1], [2,1], [1,0]];
 		
-		this.pivots["O"] = [0,0];
+		this.pivots["O"] = null;
 		this.pivots["I"] = [0,2];
 		this.pivots["S"] = [1,1];
 		this.pivots["Z"] = [1,1];
@@ -58,7 +58,7 @@ class	Audios
 {
 	constructor()
 	{
-		this.names = ["tetris.ogg", "blink.wav"];
+		this.names = ["tetris.ogg", "blink.ogg"];
 		this.tracks = {};
 		this.listener = new THREE.AudioListener();
 		this.loader = new THREE.AudioLoader();
@@ -100,6 +100,35 @@ class	Box
 		this.top -= 1;
 	}
 	
+	move(displacement)
+	{
+		this.left += displacement.x;
+		this.bottom += displacement.y;
+		this.right += displacement.x;
+		this.top += displacement.y;
+	}
+	
+	set(left, bottom, right, top)
+	{
+		this.left = left;
+		this.bottom = bottom;
+		this.right = right;
+		this.top = top;
+	}
+	
+	setFromBox(box)
+	{
+		this.left = box.left;
+		this.bottom = box.bottom;
+		this.right = box.right;
+		this.top = box.top;
+	}
+	
+	copy()
+	{
+		return new Box(this.left, this.bottom, this.right, this.top);
+	}
+	
 	// Returns true if the given point is inside or in the border of the box.
 	// Parameters types: (THREE.Vector2)
 	// Return type: bool
@@ -126,17 +155,20 @@ class	Block
 		this.position = position;
 		this.color = color;
 		this.form = form;
+		this.visible = visible;
 		
 		this.block = null;
 		this.make(visible);
 	}
 	
-	make(visible=true)
+	make(visible=null)
 	{
 		if (this.block != null) return;
 		
 		var material = null;
 		var geometry = null;
+		
+		if (visible != null) this.visible = visible;
 		
 		if (typeof(this.color) == "string")
 			material = new THREE.MeshBasicMaterial({map:this.render.textures.maps[this.color]});
@@ -154,15 +186,16 @@ class	Block
 		
 		this.block = new THREE.Mesh(geometry, material);
 		
-		this.block.position.set(this.position.x + 0.5, this.position.y + 0.5, 0);
-		this.block.visible = visible;
+		this.block.position.set(this.position.x + 0.5, this.position.y + 0.5, 0);		
+		this.block.visible = this.visible;
 		
 		this.render.scene.add(this.block);
 	}
 	
 	setVisibility(visible)
 	{
-		this.block.visible = visible;
+		this.visible = visible;
+		this.block.visible = this.visible;
 	}
 	
 	setPosition(position)
@@ -173,9 +206,8 @@ class	Block
 	
 	move(displacement)
 	{
-		var newPosition = this.position;
-		newPosition.add(displacement);
-		this.setPosition(newPosition);
+		this.position.add(displacement);
+		this.setPosition(this.position);
 	}
 	
 	remove()
@@ -195,13 +227,36 @@ class	Piece
 		this.origin = origin;
 		this.shapeName = shapeName;
 		// If the pivot is null, then the piece will not rotate.
-		this.pivot = pivot || new THREE.Vector2(this.render.shapes.pivots[this.shapeName][0], this.render.shapes.pivots[this.shapeName][1]);
+		this.pivot = pivot;
+		this.visibleBox = visibleBox;
 		this.color = color;
 		this.form = form;
-		this.visibleBox = visibleBox;
 		this.visible = visible;
+		// The array of Blocks that form the piece.
+		this.blocks = null;
 		
-		this.blocks = Array.from(this.render.shapes.shapes[this.shapeName], v => new Block(this.render, (new THREE.Vector2(v[0], v[1])).add(this.origin), this.color, this.form));
+		// Make the piece.
+		this.make();
+	}
+	
+	// Makes the piece, if there was one already created, it will remain in scene unless removed with 'this.remove()'.
+	make()
+	{
+		// If no pivot defined, then take the default converted to 'THREE.Vector2' if not null.
+		if (this.pivot === undefined)
+		{
+			if (this.render.shapes.pivots[this.shapeName] == null)
+				this.pivot = null;
+			else
+				this.pivot = new THREE.Vector2().fromArray(this.render.shapes.pivots[this.shapeName]);
+		}
+		
+		// Create all the blocks of the piece.
+		this.blocks = Array.from(this.render.shapes.shapes[this.shapeName], v => 
+			new Block(this.render, (new THREE.Vector2(v[0], v[1])).add(this.origin), this.color, this.form, false)
+		);
+		
+		// Set the visiblity if the piece correctly.
 		this.setVisibility(this.visible);
 	}
 	
@@ -210,7 +265,7 @@ class	Piece
 	{
 		// Only rotate if there is a pivot to rotate around.
 		if (this.pivot == null) return;
-		var x,y;
+		var x, y;
 		var mx = (direction == 0 ? -1 : 1);
 		var my = (direction == 0 ? 1 : -1);
 		var newPosition = null;
@@ -238,6 +293,11 @@ class	Piece
 		this.setVisibility(this.visible);
 	}
 	
+	setOrigin(origin)
+	{
+		this.move(origin.sub(this.origin));
+	}
+	
 	setVisibility(visible)
 	{
 		var blockCovered;
@@ -252,6 +312,8 @@ class	Piece
 	
 	remove()
 	{
+		if (this.blocks == null) return;
+		
 		this.setVisibility(false);
 		for (var i = 0; i < this.blocks.length; ++i)
 			this.blocks[i].remove();
@@ -261,11 +323,12 @@ class	Piece
 
 class	Board
 {
-	constructor(render, width, height)
+	constructor(render, width, height, origin=new THREE.Vector2(0,0))
 	{
 		this.render = render;
 		this.width = width;
 		this.height = height;
+		this.origin = origin;
 		// The grid is where the pieces will live.
 		this.grid = null;
 		// The frame is all that surounds the grid.
@@ -278,13 +341,15 @@ class	Board
 		this.markedLines = null;
 		// Frame visibility.
 		this.frameVisible = null;
-		
-		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "frame":new Box(0,0,this.width-1, this.height-1)};
-		
+		// The current state of the spiral effect.
+		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "steps":0, "frame":new Box(0,0,this.width-1, this.height-1)};
+		// Background of the grid.
 		this.background = null;
 		
+		// Initialize all the number of blocks of each line to zero.
 		for (var i = 0; i < this.lineBlocks.length; ++i) this.lineBlocks[i] = 0;
 		
+		// Create and empty 2D array for the grid.
 		this.createGridSpace();
 	}
 	
@@ -311,7 +376,7 @@ class	Board
 		
 		for (var i = 0; i < this.frame.length; ++i)
 		{
-			this.frame[i] = new Block(this.render, new THREE.Vector2(x,y), color, form, true);
+			this.frame[i] = new Block(this.render, (new THREE.Vector2(x,y)).add(this.origin), color, form, true);
 			
 			if (edge == 0 && x == this.frameBox.right)
 			{
@@ -350,20 +415,37 @@ class	Board
 		this.frameVisible = visible;
 	}
 	
-	addBlock(block)
+	addBlock(block, mode)
 	{
-		// Only add the plock if it falls inside the grid.
-		if (! this.frameBox.contains(block.position)) return;
-		var position = block.position;
+		var relativePosition = new THREE.Vector2().copy(block.position);
 		
-		if (this.grid[position.x][position.y] == null) this.lineBlocks[position.y] += 1;
-		this.grid[position.x][position.y] = block;
+		if (mode == "absolute") relativePosition.sub(this.origin);
+		
+		// Only add the block if it falls inside the grid, otherwise clear it, since it may be already in the scene.
+		if (!this.frameBox.contains(relativePosition))
+		{
+			block.remove();
+			return;
+		}
+		
+		var x = relativePosition.x;
+		var y = relativePosition.y;
+		
+		if (this.grid[x][y] == null) this.lineBlocks[y] += 1;
+		if (mode == "relative") block.move(this.origin);
+		this.grid[x][y] = block;
 	}
 	
-	addPiece(piece)
+	addPiece(piece, mode)
 	{
+		if (mode == "relative")
+			piece.visibleBox.set(0, 0, this.width - 1, this.height - 1);
+		else 
+			piece.visibleBox.set(this.origin.x, this.origin.y, this.origin.x + this.width - 1, this.origin.y + this.height - 1);
+		
+		piece.setVisibility(piece.visible);
 		for (var i = 0; i < piece.blocks.length; ++i)
-			this.addBlock(piece.blocks[i]);
+			this.addBlock(piece.blocks[i], mode);
 	}
 	
 	clearBlock(position)
@@ -403,7 +485,7 @@ class	Board
 		{
 			var block = this.grid[position.x][position.y];
 			var newBlock = new Block(this.render, newPosition, block.color, block.form, block.visible);
-			this.addBlock(newBlock);
+			this.addBlock(newBlock, "relative");
 		}
 		this.clearBlock(position);
 	}
@@ -429,7 +511,7 @@ class	Board
 		{
 			this.markedLines[j] = new Array(this.width);
 			for (var i = 0; i < this.width; ++i)
-				this.markedLines[j][i] = new Block(this.render, new THREE.Vector2(i,lines[j]), "fire_block", "square", true);
+				this.markedLines[j][i] = new Block(this.render, (new THREE.Vector2(i,lines[j])).add(this.origin), "fire_block", "square", true);
 		}
 	}
 	
@@ -457,9 +539,16 @@ class	Board
 	
 	nextBoardSpiral(mode)
 	{
+		if (this.spiralState.steps == this.width * this.height)
+		{
+			console.log("SPIRAL DONE, RESET STATE");
+			return;
+		}
+		this.spiralState.steps += 1;
+		
 		this.clearBlock(new THREE.Vector2(this.spiralState.x, this.spiralState.y));
 		if (mode == "show")
-			this.addBlock(new Block(this.render, new THREE.Vector2(this.spiralState.x, this.spiralState.y), "fire_block", "square", true));
+			this.addBlock(new Block(this.render, new THREE.Vector2(this.spiralState.x, this.spiralState.y), "fire_block", "square", true), "relative");
 		
 		if (this.spiralState.edge == "bottom" && this.spiralState.x == this.spiralState.frame.right)
 		{
@@ -492,20 +581,29 @@ class	Board
 	
 	resetSpiralState()
 	{
-		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "frame":new Box(0,0,this.width-1, this.height-1)};
+		this.spiralState = {"x":0, "y":0, "dx":1, "dy":0, "edge":"bottom", "steps":0, "frame":new Box(0,0,this.width-1, this.height-1)};
 	}
 	
-	makeBackground()
+	makeBackground(texture)
 	{
-		var material = new THREE.MeshBasicMaterial({map:this.render.textures.maps["end_img"]});
+		var material = new THREE.MeshBasicMaterial({map:this.render.textures.maps[texture]});
 		var geometry = new THREE.PlaneGeometry(this.width, this.height);
 		
-		this.background = new THREE.Mesh(geometry, material);
+		// Clear the background, if thre is one.
+		this.clearBackground();
 		
-		this.background.position.set(this.width / 2, this.height / 2, -0.1);
+		this.background = new THREE.Mesh(geometry, material);
+		this.background.position.set(this.width / 2 + this.origin.x, this.height / 2 + this.origin.y, -0.1);
 		this.background.visible = true;
 		
 		this.render.scene.add(this.background);
+	}
+	
+	clearBackground()
+	{
+		if (this.background == null) return;
+		this.render.scene.remove(this.background);
+		this.background = null;
 	}
 	
 	changeFrameTexture(name)
@@ -522,22 +620,24 @@ class	Board
 	{
 		var collisions = {"left":false, "bottom":false, "right":false, "top":false, "over":false};
 		
-		if (this.frameBox.contains(block.position))
+		var relativePosition = new THREE.Vector2().copy(block.position).sub(this.origin);
+		
+		if (this.frameBox.contains(relativePosition))
 		{
-			if (block.position.x > 0 && this.grid[block.position.x - 1][block.position.y] != null) collisions["left"] = true;
-			if (block.position.y > 0 && this.grid[block.position.x][block.position.y - 1] != null) collisions["bottom"] = true;
-			if (block.position.x < this.width - 1 && this.grid[block.position.x + 1][block.position.y] != null) collisions["right"] = true;
-			if (block.position.y < this.height - 1 && this.grid[block.position.x][block.position.y + 1] != null) collisions["top"] = true;
-			if (this.grid[block.position.x][block.position.y] != null) collisions["over"] = true;
+			if (relativePosition.x > 0 && this.grid[relativePosition.x - 1][relativePosition.y] != null) collisions["left"] = true;
+			if (relativePosition.y > 0 && this.grid[relativePosition.x][relativePosition.y - 1] != null) collisions["bottom"] = true;
+			if (relativePosition.x < this.width - 1 && this.grid[relativePosition.x + 1][relativePosition.y] != null) collisions["right"] = true;
+			if (relativePosition.y < this.height - 1 && this.grid[relativePosition.x][relativePosition.y + 1] != null) collisions["top"] = true;
+			if (this.grid[relativePosition.x][relativePosition.y] != null) collisions["over"] = true;
 		}
 		
 		if (border)
 		{
-			if (block.position.x == 0) collisions["left"] = true;
-			if (block.position.y == 0) collisions["bottom"] = true;
-			if (block.position.x == this.width - 1) collisions["right"] = true;
-			if (block.position.y == this.height - 1) collisions["top"] = true;
-			if (!this.frameBox.contains(block.position)) collisions["over"] = true;
+			if (relativePosition.x == 0) collisions["left"] = true;
+			if (relativePosition.y == 0) collisions["bottom"] = true;
+			if (relativePosition.x == this.width - 1) collisions["right"] = true;
+			if (relativePosition.y == this.height - 1) collisions["top"] = true;
+			if (!this.frameBox.contains(relativePosition)) collisions["over"] = true;
 		}
 		
 		return collisions;
@@ -1016,8 +1116,11 @@ class	Tetra	extends	Plane
 		this.audios = null;
 		
 		// The grid that will store the blocks already placed.
+		this.board = new Board(this, this.blocksWidth, this.blocksHeight, new THREE.Vector2(0,0));
 		this.boardBox = new Box(0, 0, this.blocksWidth - 1, this.blocksHeight - 1);
-		this.board = new Board(this, this.blocksWidth, this.blocksHeight);
+		this.boardBox.move(this.board.origin);
+		
+		this.nextPieceBoard = new Board(this, 5, 5, new THREE.Vector2(this.blocksWidth + 4, this.blocksHeight / 2 - 2));
 		
 		// To track the time.
 		this.prevTime = null;
@@ -1043,7 +1146,7 @@ class	Tetra	extends	Plane
 		this.camera3D.lookAt(this.blocksWidth / 2, this.blocksHeight / 2, 0);
 		
 		// Prepare the view.
-		this.changeBoxProportional(new Box(0 - 3, 0 - 2, this.blocksWidth + 3, this.blocksHeight + 2));
+		this.changeBoxProportional(new Box(0 - 3, 0 - 2, this.blocksWidth + 3 + 9, this.blocksHeight + 2));
 		//this.addAxis();
 		
 		window.addEventListener('keydown', this.onKeyDown.bind(this), false);
@@ -1066,7 +1169,7 @@ class	Tetra	extends	Plane
 			{
 				this.board.markLines(this.lines);
 				this.blinks += 1;
-				this.audios.tracks["blink.wav"].play();
+				this.audios.tracks["blink.ogg"].play();
 			}
 			
 			if (currentTime - this.prevTime >= 300)
@@ -1074,9 +1177,9 @@ class	Tetra	extends	Plane
 				if (this.blinks < 4)
 				{
 					this.board.blinkMarkedLines();
-					if (this.audios.tracks["blink.wav"].isPlaying)
-						this.audios.tracks["blink.wav"].stop();
-					else this.audios.tracks["blink.wav"].play();
+					if (this.audios.tracks["blink.ogg"].isPlaying)
+						this.audios.tracks["blink.ogg"].stop();
+					else this.audios.tracks["blink.ogg"].play();
 					this.blinks += 1;
 					this.prevTime = Date.now();
 				}
@@ -1084,7 +1187,7 @@ class	Tetra	extends	Plane
 				{
 					this.board.clearMarkedLines();
 					this.blinks = 0;
-					this.audios.tracks["blink.wav"].stop();
+					this.audios.tracks["blink.ogg"].stop();
 					this.setState("deleting_lines");
 				}
 			}
@@ -1105,6 +1208,7 @@ class	Tetra	extends	Plane
 			if (this.board.blockOnTop())
 			{
 				console.log("GAME OVER");
+				this.nextPiece.remove();
 				this.audios.tracks["tetris.ogg"].stop();
 				this.audios.tracks["tetris.ogg"].play();
 				this.setState("end_spiral");
@@ -1128,12 +1232,14 @@ class	Tetra	extends	Plane
 					{
 						this.audios.tracks["tetris.ogg"].stop();
 						this.endMode = "hide";
-						this.board.makeBackground();
+						this.board.makeBackground("end_img");
 					}
 					else
 					{
 						this.setState("end");
 						this.board.changeFrameTexture("heart");
+						this.nextPieceBoard.changeFrameTexture("heart");
+						this.nextPieceBoard.makeBackground("background_heart");
 						
 						var geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
 						var material = new THREE.MeshBasicMaterial({map:this.textures.maps["background"]});
@@ -1153,8 +1259,15 @@ class	Tetra	extends	Plane
 			if (currentTime - this.prevTime >= 500)
 			{
 				if (this.board.frame[0].block.material.map == this.textures.maps["heart"])
+				{
 					this.board.changeFrameTexture("dark");
-				else this.board.changeFrameTexture("heart");
+					this.nextPieceBoard.changeFrameTexture("dark");
+				}
+				else 
+				{
+					this.board.changeFrameTexture("heart");
+					this.nextPieceBoard.changeFrameTexture("heart");
+				}
 				this.prevTime = Date.now();
 			}
 		}
@@ -1200,10 +1313,12 @@ class	Tetra	extends	Plane
 		
 		if (collisions["bottom"])
 		{
-			this.board.addPiece(this.currentPiece);
+			this.board.addPiece(this.currentPiece, "absolute");
 			this.currentPiece = this.nextPiece;
-			this.currentPiece.setVisibility(true);
-			this.nextPiece = this.createPiece(false);
+			this.currentPiece.visibleBox.setFromBox(this.boardBox);
+			this.currentPiece.setOrigin((new THREE.Vector2(this.randomInt(0, this.blocksWidth - 3), this.blocksHeight)).add(this.board.origin));
+			
+			this.nextPiece = this.createPiece(true);
 			
 			this.lines = this.board.fullLines();
 			if (this.lines.length > 0)
@@ -1230,9 +1345,12 @@ class	Tetra	extends	Plane
 	{
 		var shape = this.shapes.names[this.randomInt(0, this.shapes.names.length)];
 		var color = this.textures.namesColors[this.randomInt(0, this.textures.namesColors.length)];
-		var x = this.randomInt(0, this.blocksWidth - 3);
+		var position = (new THREE.Vector2(0, 0)).add(this.nextPieceBoard.origin).add(new THREE.Vector2(1,1));
+		var visibleBox = this.nextPieceBoard.frameBox.copy();
 		
-		return new Piece(this, new THREE.Vector2(x, this.blocksHeight), shape, undefined, this.boardBox, color, "square", visible);
+		visibleBox.shrink();
+		visibleBox.move(this.nextPieceBoard.origin);
+		return new Piece(this, position, shape, undefined, visibleBox, color, "square", visible);
 	}
 	
 	setState(state)
@@ -1262,8 +1380,13 @@ class	Tetra	extends	Plane
 		
 		Promise.all(texturesPromises).then(textures => {
 			this.board.createFrame("bricks", "square");
+			this.nextPieceBoard.createFrame("dark_fire_block", "square");
 			this.currentPiece = this.createPiece(true);
-			this.nextPiece = this.createPiece(false);
+			this.nextPiece = this.createPiece(true);
+			
+			this.currentPiece.visibleBox.setFromBox(this.boardBox);
+			this.currentPiece.setOrigin((new THREE.Vector2(this.randomInt(0, this.blocksWidth - 3), this.blocksHeight)).add(this.board.origin));
+			
 			this.prevTime = Date.now();
 			this.animate(0);
 		});
