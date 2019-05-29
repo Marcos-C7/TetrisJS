@@ -5,7 +5,7 @@ class	Textures
 	{
 		this.namesColors = ["blue", "green", "grey", "orange", "pearl", "purple", "red", "yellow"];
 		this.namesMasks = ["gradient_black", "gradient_white", "dark"];
-		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart", "background", "dark_fire_block", "background_heart", "data"];
+		this.namesMaterials = ["bricks", "fire_block", "end_img3", "heart", "background", "dark_fire_block", "background_heart", "data", "gael"];
 		this.maps = {};
 		this.loader = new THREE.TextureLoader();
 	}
@@ -78,7 +78,7 @@ class	Audios
 {
 	constructor()
 	{
-		this.names = ["tetris.ogg", "blink.ogg"];
+		this.names = ["tetris.ogg", "blink.ogg", "May It Be.mp3"];
 		this.tracks = {};
 		this.listener = new THREE.AudioListener();
 		this.loader = new THREE.AudioLoader();
@@ -1253,7 +1253,7 @@ class	Tetra	extends	Plane
 		}
 		else if (this.state == "end_spiral")
 		{
-			if (currentTime - this.prevTime >= 10)
+			if (currentTime - this.prevTime >= 19)
 			{
 				if (this.endBlocks < this.blocksWidth * this.blocksHeight)
 				{
@@ -1265,18 +1265,21 @@ class	Tetra	extends	Plane
 					if (this.endMode == "show")
 					{
 						this.audios.tracks["tetris.ogg"].stop();
+						this.audios.tracks["May It Be.mp3"].offset = 48;
+						this.audios.tracks["May It Be.mp3"].setVolume(0.8);
+						this.audios.tracks["May It Be.mp3"].play();
 						this.endMode = "hide";
-						this.board.makeBackground("end_img");
+						this.board.makeBackground("end_img3");
 					}
 					else
 					{
 						this.setState("end");
 						this.board.changeFrameTexture("heart");
 						this.nextPieceBoard.changeFrameTexture("heart");
-						this.nextPieceBoard.makeBackground("background_heart");
+						this.nextPieceBoard.makeBackground("gael");
 						
 						this.changeBackgroundImage(this.textures.maps["background"]);
-						this.textures.fillAspectRatio(this.background.material.map, this.width, this.height);
+						//this.textures.fillAspectRatio(this.background.material.map, this.width, this.height);
 					}
 					
 					this.endBlocks = 0;
@@ -1422,12 +1425,13 @@ class	Tetra	extends	Plane
 			this.animate(0);
 		});
 		
-		this.setState("end_spiral");
+		this.setState("playing");
 	}
 	
 	resize(width, height)
 	{
 		super.resize(width, height);
+		this.changeBackgroundImage(this.textures.maps["background"]);
 	}
 	
 	stop()

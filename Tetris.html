@@ -21,7 +21,7 @@
 </head>
 <body>
 <div id="draw_container" style="height:400px; width:400px; margin:0px; padding:0px;"></div>
-<button id="start_button" class="button">¡Calcular!</button>
+<button id="start_button" class="button">¡JUGAR!</button>
 
 <script src="js/three.min.js"></script>
 <script src="js/WebGL.js"></script>
@@ -33,7 +33,7 @@ var w = $(window).width();
 var	h = $(window).height();
 var	Tet = new Tetra('draw_container', w, h, 0x000000);
 
-//window.addEventListener('resize', function(){Tet.resize($(window).width(), $(window).height());}, false);
+window.addEventListener('resize', function(){Tet.resize($(window).width(), $(window).height());}, false);
 
 var start_button = document.getElementById("start_button");
 start_button.addEventListener("click", function(){
