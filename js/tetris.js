@@ -22,12 +22,13 @@ class	Textures
 		return promises;
 	}
 	
-	fillAspectRatio(texture, width, height)
+	fillAspectRatio(texture, width, height, mode="outer")
 	{
 		// Center the background maintaining the aspect ratio.
 		var textureDim = new THREE.Vector2(texture.image.width, texture.image.height);
 		var side = (height * textureDim.x >= width * textureDim.y ? "h" : "v");
 		var repeat_portion = null;
+		
 		if (side == "v")
 		{
 			repeat_portion = (height * textureDim.x) / (width * textureDim.y);
@@ -147,6 +148,16 @@ class	Box
 	copy()
 	{
 		return new Box(this.left, this.bottom, this.right, this.top);
+	}
+	
+	width()
+	{
+		return this.right - this.left;
+	}
+	
+	height()
+	{
+		return this.top - this.bottom;
 	}
 	
 	// Returns true if the given point is inside or in the border of the box.
@@ -894,10 +905,19 @@ class	Plane
 	}
 	
 	// Creates a background plane with an image.
-	changeBackgroundImage(texture)
+	// If an aspect ratio is given, then the background plane will be the biggest having such aspect ratio.
+	changeBackgroundImage(texture, aspectratio=null)
 	{
-		var geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
 		var material = new THREE.MeshBasicMaterial({map:texture});
+		var geometry = null;
+		
+		if (aspectratio == null)
+			geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
+		else if (aspectratio <= this.height / this.width)
+			geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, aspectratio * this.width * this.pix_dy);
+		else
+			geometry = new THREE.PlaneGeometry(this.height * this.pix_dx / aspectratio, this.box.top - this.box.bottom);
+		
 		this.scene.remove(this.background);
 		this.background = new THREE.Mesh(geometry, material);
 		this.background.position.set(0.5 * (this.box.right + this.box.left), 0.5 * (this.box.top + this.box.bottom), -10);
@@ -1061,7 +1081,7 @@ class	Plane
 		this.updateAll();
 	}
 	
-	// Changes the box proportionally, taking as base the given box. The new box will be propostional and will 
+	// Changes the box proportionally, taking as base the given box. The new box will be proportional and will 
 	// satisfy that the given 'side' ("h"=horizontal, "v"=vertical) exactly fits the same side of the canvas.
 	// If no side is given, then it will be chosen the one that makes the box be completely inside the canvas.
 	// Parameters types: (Box, char)
@@ -1148,11 +1168,11 @@ class	Tetra	extends	Plane
 		this.audios = null;
 		
 		// The grid that will store the blocks already placed.
-		this.board = new Board(this, this.blocksWidth, this.blocksHeight, new THREE.Vector2(0,0));
+		this.board = new Board(this, this.blocksWidth, this.blocksHeight, new THREE.Vector2(-10,0));
 		this.boardBox = new Box(0, 0, this.blocksWidth - 1, this.blocksHeight - 1);
 		this.boardBox.move(this.board.origin);
 		
-		this.nextPieceBoard = new Board(this, 5, 5, new THREE.Vector2(this.blocksWidth + 4, this.blocksHeight / 2 - 2));
+		this.nextPieceBoard = new Board(this, 5, 5, new THREE.Vector2(this.board.origin.x + this.blocksWidth + 4, this.board.origin.y + this.blocksHeight / 2 - 2));
 		
 		// To track the time.
 		this.prevTime = null;
@@ -1178,9 +1198,10 @@ class	Tetra	extends	Plane
 		this.camera3D.lookAt(this.blocksWidth / 2, this.blocksHeight / 2, 0);
 		
 		// Prepare the view.
-		this.changeBoxProportional(new Box(0 - 3, 0 - 2, this.blocksWidth + 3 + 9, this.blocksHeight + 2));
 		this.boxView.set(0 - 3, 0 - 2, this.blocksWidth + 3 + 9, this.blocksHeight + 2);
-		//this.addAxis();
+		this.boxView.left = -1.895 * this.boxView.height() * 0.5;
+		this.boxView.right = 1.895 * this.boxView.height() * 0.5;
+		this.changeBoxProportional(this.boxView);
 		
 		window.addEventListener('keydown', this.onKeyDown.bind(this), false);
 		
@@ -1267,18 +1288,18 @@ class	Tetra	extends	Plane
 						this.audios.tracks["tetris.ogg"].stop();
 						this.audios.tracks["May It Be.mp3"].offset = 48;
 						this.audios.tracks["May It Be.mp3"].setVolume(0.8);
-						this.audios.tracks["May It Be.mp3"].play();
+						//**this.audios.tracks["May It Be.mp3"].play();
 						this.endMode = "hide";
-						this.board.makeBackground("end_img3");
+						//**this.board.makeBackground("end_img3");
 					}
 					else
 					{
 						this.setState("end");
 						this.board.changeFrameTexture("heart");
 						this.nextPieceBoard.changeFrameTexture("heart");
-						this.nextPieceBoard.makeBackground("gael");
+						//**this.nextPieceBoard.makeBackground("gael");
 						
-						this.changeBackgroundImage(this.textures.maps["background"]);
+						this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
 						//this.textures.fillAspectRatio(this.background.material.map, this.width, this.height);
 					}
 					
@@ -1413,6 +1434,8 @@ class	Tetra	extends	Plane
 		});
 		
 		Promise.all(texturesPromises).then(textures => {
+			textures.forEach(t => {t.minFilter = THREE.NearestMipMapLinearFilter;});
+			
 			this.board.createFrame("bricks", "square");
 			this.nextPieceBoard.createFrame("dark_fire_block", "square");
 			this.currentPiece = this.createPiece(true);
@@ -1425,14 +1448,14 @@ class	Tetra	extends	Plane
 			this.animate(0);
 		});
 		
-		this.setState("playing");
+		this.setState("end_spiral");//**
 	}
 	
 	resize(width, height)
 	{
 		super.resize(width, height);
 		if (this.state == "end")
-			this.changeBackgroundImage(this.textures.maps["background"]);
+			this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
 	}
 	
 	stop()
