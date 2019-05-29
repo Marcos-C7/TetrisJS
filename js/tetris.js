@@ -1431,7 +1431,8 @@ class	Tetra	extends	Plane
 	resize(width, height)
 	{
 		super.resize(width, height);
-		this.changeBackgroundImage(this.textures.maps["background"]);
+		if (this.state == "end")
+			this.changeBackgroundImage(this.textures.maps["background"]);
 	}
 	
 	stop()
