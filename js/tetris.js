@@ -79,7 +79,7 @@ class	Audios
 {
 	constructor()
 	{
-		this.names = ["tetris.ogg", "blink.ogg", "May It Be.mp3"];
+		this.names = ["tetris.ogg", "blink.ogg"];
 		this.tracks = {};
 		this.listener = new THREE.AudioListener();
 		this.loader = new THREE.AudioLoader();
@@ -1286,8 +1286,8 @@ class	Tetra	extends	Plane
 					if (this.endMode == "show")
 					{
 						this.audios.tracks["tetris.ogg"].stop();
-						this.audios.tracks["May It Be.mp3"].offset = 48;
-						this.audios.tracks["May It Be.mp3"].setVolume(0.8);
+						//**this.audios.tracks["May It Be.mp3"].offset = 48;
+						//**this.audios.tracks["May It Be.mp3"].setVolume(0.8);
 						//**this.audios.tracks["May It Be.mp3"].play();
 						this.endMode = "hide";
 						//**this.board.makeBackground("end_img3");
