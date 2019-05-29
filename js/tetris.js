@@ -5,7 +5,7 @@ class	Textures
 	{
 		this.namesColors = ["blue", "green", "grey", "orange", "pearl", "purple", "red", "yellow"];
 		this.namesMasks = ["gradient_black", "gradient_white", "dark"];
-		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart", "background", "dark_fire_block", "background_heart"];
+		this.namesMaterials = ["bricks", "fire_block", "end_img", "heart", "background", "dark_fire_block", "background_heart", "data"];
 		this.maps = {};
 		this.loader = new THREE.TextureLoader();
 	}
@@ -20,6 +20,26 @@ class	Textures
 		for (let i = 0; i < this.namesMaterials.length; ++i)
 			promises.push(new Promise(resolve => {this.maps[this.namesMaterials[i]] = this.loader.load("imgs/" + this.namesMaterials[i] + ".jpg", resolve);}));
 		return promises;
+	}
+	
+	fillAspectRatio(texture, width, height)
+	{
+		// Center the background maintaining the aspect ratio.
+		var textureDim = new THREE.Vector2(texture.image.width, texture.image.height);
+		var side = (height * textureDim.x >= width * textureDim.y ? "h" : "v");
+		var repeat_portion = null;
+		if (side == "v")
+		{
+			repeat_portion = (height * textureDim.x) / (width * textureDim.y);
+			texture.repeat.set(1, repeat_portion);
+			texture.offset.y = -(repeat_portion - 1) / 2;
+		}
+		else
+		{
+			repeat_portion = (width * textureDim.y) / (height * textureDim.x);
+			texture.repeat.set(repeat_portion, 1);
+			texture.offset.x = -(repeat_portion - 1) / 2;
+		}
 	}
 }
 
@@ -818,6 +838,8 @@ class	Plane
 		this.bgColor = bgColor;
 		
 		this.box = new Box(-0.5 * this.width / 50, -0.5 * this.height / 50, 0.5 * this.width / 50, 0.5 * this.height / 50);
+		// This box will remain constant unless manually changed, this defines the box that must be respected when resising.
+		this.boxView = new Box(-0.5 * this.width / 50, -0.5 * this.height / 50, 0.5 * this.width / 50, 0.5 * this.height / 50);
 		this.pix_dx = (this.box.right - this.box.left) / this.width;
 		this.pix_dy = (this.box.top - this.box.bottom) / this.height;
 		
@@ -828,7 +850,7 @@ class	Plane
 		this.camera3D = new THREE.PerspectiveCamera(60, this.width / this.height, 0.1, 100);
 		// The renderer.
 		this.renderer = new THREE.WebGLRenderer({antialias:true});
-		// The plane that will work as the background.
+		// The plane for setting a background image.
 		this.background = null;
 		
 		// The context will indicate the camera used in the rendering ("2D" or "3D").
@@ -858,25 +880,26 @@ class	Plane
 		
 		/*this.light = new THREE.AmbientLight(0x404040);
 		this.light = new THREE.PointLight(0xff0000, 3, 100, 2);
-		*/
 		this.light = new THREE.DirectionalLight(0xffffff, 2);
 		this.light.position.set(0, 0, 20);
-		this.scene.add(this.light);
+		this.scene.add(this.light);*/
 		
 		// ELEMENTS DRAWN IN THE SCENE.
 		// The array of axis, we will allow multiple axis through different centers.
 		this.axis = [];
 		
-		this.makeBackground();
+		//this.makeBackground();
+		this.changeBackgroundColor(this.bgColor);
 		this.redraw();
 	}
 	
-	// Create the background plane.
-	makeBackground()
+	// Creates a background plane with an image.
+	changeBackgroundImage(texture)
 	{
-		var bgGeometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
-		var bgMaterial = new THREE.MeshBasicMaterial({color: this.bgColor});
-		this.background = new THREE.Mesh(bgGeometry, bgMaterial);
+		var geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
+		var material = new THREE.MeshBasicMaterial({map:texture});
+		this.scene.remove(this.background);
+		this.background = new THREE.Mesh(geometry, material);
 		this.background.position.set(0.5 * (this.box.right + this.box.left), 0.5 * (this.box.top + this.box.bottom), -10);
 		this.scene.add(this.background);
 	}
@@ -886,8 +909,7 @@ class	Plane
 	changeBackgroundColor(color)
 	{
 		this.bgColor = color;
-		this.background.material.color.setHex(this.bgColor);
-		this.redraw();
+		this.scene.background = new THREE.Color(color);
 	}
 	
 	// Creates an 'Axis' object and appends it to the 'this.axis' array.
@@ -1023,7 +1045,7 @@ class	Plane
 		this.pix_dy = (this.box.top - this.box.bottom) / this.height;
 		this.changeCameraFrustrum(this.box);
 		this.scene.remove(this.background);
-		this.makeBackground();
+		//this.makeBackground();
 		this.updateAxis();
 	}
 	
@@ -1032,9 +1054,9 @@ class	Plane
 	// Return type: void
 	changeBox(box)
 	{
+		box = box.copy();
 		//Make sure that left < right and bottom < top
 		box.fix();
-		
 		this.box = box;
 		this.updateAll();
 	}
@@ -1046,7 +1068,7 @@ class	Plane
 	// Return type: void
 	changeBoxProportional(box, side)
 	{
-		box = box || this.box;
+		box = (box || this.box).copy();
 		
 		//Make sure that left < right and bottom < top
 		box.fix();
@@ -1076,6 +1098,16 @@ class	Plane
 		}
 		
 		this.changeBox(box);
+	}
+	
+	resize(width, height)
+	{
+		this.width = width;
+		this.height = height;
+		$("#"+this.divID).width(this.width);
+		$("#"+this.divID).height(this.height);
+		this.renderer.setSize(this.width, this.height);
+		this.changeBoxProportional(this.boxView);
 	}
 	
 	// Removes the object from the scene.
@@ -1147,9 +1179,11 @@ class	Tetra	extends	Plane
 		
 		// Prepare the view.
 		this.changeBoxProportional(new Box(0 - 3, 0 - 2, this.blocksWidth + 3 + 9, this.blocksHeight + 2));
+		this.boxView.set(0 - 3, 0 - 2, this.blocksWidth + 3 + 9, this.blocksHeight + 2);
 		//this.addAxis();
 		
 		window.addEventListener('keydown', this.onKeyDown.bind(this), false);
+		
 	}
 	
 	animate(time)
@@ -1241,11 +1275,8 @@ class	Tetra	extends	Plane
 						this.nextPieceBoard.changeFrameTexture("heart");
 						this.nextPieceBoard.makeBackground("background_heart");
 						
-						var geometry = new THREE.PlaneGeometry(this.box.right - this.box.left, this.box.top - this.box.bottom);
-						var material = new THREE.MeshBasicMaterial({map:this.textures.maps["background"]});
-						this.background = new THREE.Mesh(geometry, material);
-						this.background.position.set(0.5 * (this.box.right + this.box.left), 0.5 * (this.box.top + this.box.bottom), -10);
-						this.scene.add(this.background);
+						this.changeBackgroundImage(this.textures.maps["background"]);
+						this.textures.fillAspectRatio(this.background.material.map, this.width, this.height);
 					}
 					
 					this.endBlocks = 0;
@@ -1391,7 +1422,12 @@ class	Tetra	extends	Plane
 			this.animate(0);
 		});
 		
-		this.setState("playing");
+		this.setState("end_spiral");
+	}
+	
+	resize(width, height)
+	{
+		super.resize(width, height);
 	}
 	
 	stop()
