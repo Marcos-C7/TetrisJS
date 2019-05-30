@@ -1344,7 +1344,7 @@ class	Tetra	extends	Plane
 					{
 						this.audios.tracks["tetris.ogg"].stop();
 						this.audios.tracks["VAN.mp3"].offset = 46;//**
-						this.audios.tracks["VAN.mp3"].setVolume(0.8);//**
+						this.audios.tracks["VAN.mp3"].setVolume(1.0);//**
 						this.audios.tracks["VAN.mp3"].play();//**
 						this.endMode = "hide";
 						this.board.makeBackground("end_img3");//**
@@ -1515,7 +1515,7 @@ class	Tetra	extends	Plane
 				this.audios.tracks[this.audios.names[i]] = new THREE.Audio(this.audios.listener);
 				this.audios.tracks[this.audios.names[i]].setBuffer(buffers[i]);
 				this.audios.tracks[this.audios.names[i]].setLoop(true);
-				this.audios.tracks[this.audios.names[i]].setVolume(0.5);
+				this.audios.tracks[this.audios.names[i]].setVolume(0.4);
 			}
 			this.audios.tracks["tetris.ogg"].play();
 		});
