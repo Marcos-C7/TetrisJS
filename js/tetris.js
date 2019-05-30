@@ -95,6 +95,25 @@ class	Audios
 }
 
 
+class	Fonts
+{
+	constructor()
+	{
+		this.names = ["helvetiker_regular", "droid_sans_regular", "preview_regular", "square_deal_regular", "basica_regular", "megafont_regular"];
+		this.fonts = {};
+		this.loader = new THREE.FontLoader();
+	}
+	
+	loadFonts()
+	{
+		var promises = [];
+		for (let i = 0; i < this.names.length; ++i)
+			promises.push(new Promise(resolve => {this.loader.load("fonts/" + this.names[i] + ".typeface.json", resolve);}));
+		return promises;
+	}
+}
+
+
 class	Box
 {
 	// Parameters types: (float, float, float, float), 
@@ -876,7 +895,7 @@ class	Plane
 		$("#"+this.divID).append(this.renderer.domElement);
 		
 		// Set the cameras position and look vector.
-		this.camera.position.set(0, 0, 1);
+		this.camera.position.set(0, 0, 10);
 		this.camera.lookAt(0, 0, 0);
 		this.camera3D.position.set(0, 0, 20);
 		this.camera3D.lookAt(0, 0, 0);
@@ -889,11 +908,11 @@ class	Plane
 		this.orbitControls.minPolarAngle =  3 * Math.PI / 10;
 		this.orbitControls.maxPolarAngle =  7 * Math.PI / 10;
 		
-		/*this.light = new THREE.AmbientLight(0x404040);
-		this.light = new THREE.PointLight(0xff0000, 3, 100, 2);
-		this.light = new THREE.DirectionalLight(0xffffff, 2);
+		this.light = new THREE.AmbientLight(0xffffff);
+		//this.light = new THREE.PointLight(0xff0000, 3, 100, 2);
+		//this.light = new THREE.DirectionalLight(0xffffff, 2);
 		this.light.position.set(0, 0, 20);
-		this.scene.add(this.light);*/
+		this.scene.add(this.light);
 		
 		// ELEMENTS DRAWN IN THE SCENE.
 		// The array of axis, we will allow multiple axis through different centers.
@@ -1166,6 +1185,7 @@ class	Tetra	extends	Plane
 		this.textures = new Textures();
 		this.shapes = new Shapes();
 		this.audios = null;
+		this.fonts = null;
 		
 		// The grid that will store the blocks already placed.
 		this.board = new Board(this, this.blocksWidth, this.blocksHeight, new THREE.Vector2(-10,0));
@@ -1191,6 +1211,13 @@ class	Tetra	extends	Plane
 		this.blinks = 0;
 		this.endBlocks = 0;
 		this.endMode = "show";
+		
+		this.textMaterials = [new THREE.MeshPhongMaterial({color:0xffffff}), new THREE.MeshPhongMaterial({color:0xffffff})];
+		this.tetrisLabel = null;
+		this.nextPieceLabel = null;
+		this.scoreLabel = null;
+		this.scoreText = null;
+		this.score = 0;
 		
 		// Set the target of the orbit controls.
 		this.orbitControls.target.set(this.blocksWidth / 2, this.blocksHeight / 2, 0);
@@ -1249,12 +1276,15 @@ class	Tetra	extends	Plane
 		}
 		else if (this.state == "deleting_lines")
 		{
+			this.score += (10 * (this.lines.length * (this.lines.length + 1) / 2));
 			this.lines.push(this.blocksHeight);
 			for (var i = 0; i < this.lines.length - 1; ++i)
 			for (var j = this.lines[i] + 1; j < this.lines[i + 1]; ++j)
 				this.board.moveLine(j, -(i + 1));
 			this.board.clearLine(this.height - 1);
 			
+			
+			this.scoreText = this.changeText(this.scoreText, String(this.score), 0.8, new THREE.Vector3(this.board.origin.x - 7, 0.5 * (this.board.origin.y + this.board.height) - 2, 0.1));
 			this.prevTime = Date.now();
 			this.setState("test_game_over");
 		}
@@ -1290,14 +1320,19 @@ class	Tetra	extends	Plane
 						//**this.audios.tracks["May It Be.mp3"].setVolume(0.8);
 						//**this.audios.tracks["May It Be.mp3"].play();
 						this.endMode = "hide";
-						//**this.board.makeBackground("end_img3");
+						this.board.makeBackground("end_img3");//**
 					}
 					else
 					{
 						this.setState("end");
 						this.board.changeFrameTexture("heart");
 						this.nextPieceBoard.changeFrameTexture("heart");
-						//**this.nextPieceBoard.makeBackground("gael");
+						this.nextPieceBoard.makeBackground("gael");//**
+						
+						this.scene.remove(this.tetrisLabel);
+						this.scene.remove(this.nextPieceLabel);
+						this.scene.remove(this.scoreLabel);
+						this.scene.remove(this.scoreText);
 						
 						this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
 						//this.textures.fillAspectRatio(this.background.material.map, this.width, this.height);
@@ -1413,14 +1448,39 @@ class	Tetra	extends	Plane
 		this.state = state;
 	}
 	
+	changeText(mesh, text, size, position)
+	{
+		if (mesh != null) this.scene.remove(mesh);
+		
+		var geometry = new THREE.TextGeometry(text, {font: this.fonts.fonts["megafont_regular"], size:size, height:1, curveSegments: 12});
+		geometry = new THREE.BufferGeometry().fromGeometry(geometry);
+		var text = new THREE.Mesh(geometry, this.textMaterials);
+		text.position.copy(position);
+		this.scene.add(text);
+		return text;
+	}
+	
 	startGame()
 	{
 		// Start execution.
 		this.shapes.make();
 		this.audios = new Audios();
+		this.fonts = new Fonts();
 		
 		var texturesPromises = this.textures.loadTextures();
 		var audiosPromises = this.audios.loadAudios();
+		var fontsPromises = this.fonts.loadFonts();
+		
+		Promise.all(fontsPromises).then(fonts => {
+			for (var i = 0; i < this.fonts.names.length; ++i)
+			{
+				this.fonts.fonts[this.fonts.names[i]] = fonts[i];
+			}
+			this.tetrisLabel = this.changeText(this.tetrisLabel, "TETRIS", 1, new THREE.Vector3(this.boxView.left + 2, this.boxView.top - 2, 0.1));
+			this.nextPieceLabel = this.changeText(this.nextPieceLabel, "Siguiente", 0.8, new THREE.Vector3(this.nextPieceBoard.origin.x - 1.5, this.nextPieceBoard.origin.y + 7, 0.1));
+			this.scoreLabel = this.changeText(this.scoreLabel, "Puntos", 0.8, new THREE.Vector3(this.board.origin.x - 8, 0.5 * (this.board.origin.y + this.board.height), 0.1));
+			this.scoreText = this.changeText(this.scoreText, String(this.score), 0.8, new THREE.Vector3(this.board.origin.x - 7, 0.5 * (this.board.origin.y + this.board.height) - 2, 0.1));
+		});
 		
 		Promise.all(audiosPromises).then(buffers => {
 			for (var i = 0; i < this.audios.names.length; ++i)
@@ -1444,11 +1504,12 @@ class	Tetra	extends	Plane
 			this.currentPiece.visibleBox.setFromBox(this.boardBox);
 			this.currentPiece.setOrigin((new THREE.Vector2(this.randomInt(0, this.blocksWidth - 3), this.blocksHeight)).add(this.board.origin));
 			
+			this.score = 0;
 			this.prevTime = Date.now();
 			this.animate(0);
 		});
 		
-		this.setState("end_spiral");//**
+		this.setState("playing");//**
 	}
 	
 	resize(width, height)
