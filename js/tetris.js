@@ -52,6 +52,26 @@ class	Shapes
 		this.names = ["O", "I", "S", "Z", "L", "J", "T"];
 		this.shapes = {};
 		this.pivots = {};
+		
+		this.probabilities = [1, 3, 1, 1, 2, 2, 2];
+		this.probCumulative = [0];
+		this.probSum = 0;
+		
+		for (var i = 0; i < this.probabilities.length; ++i)
+		{
+			this.probSum += this.probabilities[i];
+			this.probCumulative.push(this.probSum);
+		}
+	}
+	
+	getweightedFigure()
+	{
+		var r = Math.floor(Math.random() * (this.probSum - 0) ) + 0;
+		
+		for (var i = 0; i < this.probCumulative.length - 1; ++i)
+		if (this.probCumulative[i] <= r && r < this.probCumulative[i + 1])
+			return i;
+		return -1;
 	}
 	
 	make()
@@ -1199,6 +1219,7 @@ class	Tetra	extends	Plane
 		// Speed of the pieces movement, in miliseconds.
 		// A piece will move every this number of miliseconds.
 		this.speed = 500;
+		this.levelTime = 0;
 		
 		this.nextFrame = null;
 		
@@ -1242,8 +1263,14 @@ class	Tetra	extends	Plane
 		
 		if (this.state == "playing")
 		{
-			if (currentTime - this.prevTime >= this.speed && this.state == "playing")
+			if (currentTime - this.prevTime >= this.speed)
 				this.moveDown();
+			
+			if (currentTime - this.levelTime >= 60000)
+			{
+				this.speed = Math.max(this.speed - 50, 70);
+				this.levelTime = currentTime;
+			}
 		}
 		else if (this.state == "marking_lines")
 		{
@@ -1433,7 +1460,7 @@ class	Tetra	extends	Plane
 	
 	createPiece(visible)
 	{
-		var shape = this.shapes.names[this.randomInt(0, this.shapes.names.length)];
+		var shape = this.shapes.names[this.shapes.getweightedFigure()];
 		var color = this.textures.namesColors[this.randomInt(0, this.textures.namesColors.length)];
 		var position = (new THREE.Vector2(0, 0)).add(this.nextPieceBoard.origin).add(new THREE.Vector2(1,1));
 		var visibleBox = this.nextPieceBoard.frameBox.copy();
@@ -1506,6 +1533,7 @@ class	Tetra	extends	Plane
 			
 			this.score = 0;
 			this.prevTime = Date.now();
+			this.levelTime = Date.now();
 			this.animate(0);
 		});
 		
