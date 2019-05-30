@@ -1188,11 +1188,11 @@ class	Tetra	extends	Plane
 		this.fonts = null;
 		
 		// The grid that will store the blocks already placed.
-		this.board = new Board(this, this.blocksWidth, this.blocksHeight, new THREE.Vector2(-10,0));
+		this.board = new Board(this, this.blocksWidth, this.blocksHeight, new THREE.Vector2(-8,0));
 		this.boardBox = new Box(0, 0, this.blocksWidth - 1, this.blocksHeight - 1);
 		this.boardBox.move(this.board.origin);
 		
-		this.nextPieceBoard = new Board(this, 5, 5, new THREE.Vector2(this.board.origin.x + this.blocksWidth + 4, this.board.origin.y + this.blocksHeight / 2 - 2));
+		this.nextPieceBoard = new Board(this, 5, 5, new THREE.Vector2(this.board.origin.x + this.blocksWidth + 5, this.board.origin.y + this.blocksHeight / 2 - 2));
 		
 		// To track the time.
 		this.prevTime = null;
