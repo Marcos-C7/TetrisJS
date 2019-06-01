@@ -1268,7 +1268,7 @@ class	Tetra	extends	Plane
 			
 			if (currentTime - this.levelTime >= 60000)
 			{
-				this.speed = Math.max(this.speed - 50, 70);
+				this.speed = Math.max(this.speed - 50, 50);
 				this.levelTime = currentTime;
 			}
 		}
@@ -1361,7 +1361,8 @@ class	Tetra	extends	Plane
 						this.scene.remove(this.scoreLabel);
 						this.scene.remove(this.scoreText);
 						
-						this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
+						//**this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
+						this.changeBackgroundImage(this.textures.maps["background"]);
 						//this.textures.fillAspectRatio(this.background.material.map, this.width, this.height);
 					}
 					
@@ -1544,7 +1545,8 @@ class	Tetra	extends	Plane
 	{
 		super.resize(width, height);
 		if (this.state == "end")
-			this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
+			//**this.changeBackgroundImage(this.textures.maps["background"], 0.5276);
+			this.changeBackgroundImage(this.textures.maps["background"]);
 	}
 	
 	stop()
