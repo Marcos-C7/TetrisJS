@@ -1444,8 +1444,7 @@ class	Tetra	extends	Plane
 			else
 				this.setState("test_game_over");
 		}
-		
-		if (this.state == "playing")
+		else if (this.state == "playing")
 			this.currentPiece.move(new THREE.Vector2(0,-1));
 		this.prevTime = Date.now();
 	}
@@ -1482,10 +1481,10 @@ class	Tetra	extends	Plane
 		
 		var geometry = new THREE.TextGeometry(text, {font: this.fonts.fonts["megafont_regular"], size:size, height:1, curveSegments: 12});
 		geometry = new THREE.BufferGeometry().fromGeometry(geometry);
-		var text = new THREE.Mesh(geometry, this.textMaterials);
-		text.position.copy(position);
-		this.scene.add(text);
-		return text;
+		var newMesh = new THREE.Mesh(geometry, this.textMaterials);
+		newMesh.position.copy(position);
+		this.scene.add(newMesh);
+		return newMesh;
 	}
 	
 	startGame()
@@ -1535,10 +1534,9 @@ class	Tetra	extends	Plane
 			this.score = 0;
 			this.prevTime = Date.now();
 			this.levelTime = Date.now();
+			this.setState("playing");//**
 			this.animate(0);
 		});
-		
-		this.setState("playing");//**
 	}
 	
 	resize(width, height)
