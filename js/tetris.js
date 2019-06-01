@@ -1268,7 +1268,7 @@ class	Tetra	extends	Plane
 			
 			if (currentTime - this.levelTime >= 60000)
 			{
-				this.speed = Math.max(this.speed - 100, 100);
+				this.speed = Math.max(this.speed - 50, 150);
 				this.levelTime = currentTime;
 			}
 		}
